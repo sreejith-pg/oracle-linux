@@ -1,0 +1,4 @@
+---
+- hosts: localhost
+  roles:
+    - roles/cis-ol8-v2.0.0
