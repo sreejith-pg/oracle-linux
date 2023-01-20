@@ -1,0 +1,555 @@
+---
+- name: Collect package list
+  ansible.builtin.package_facts:
+    manager: auto
+  tags:
+    - always
+
+- name: Print all available facts
+  ansible.builtin.debug:
+    var: ansible_facts
+        
+# 1.1.1.1 Ensure mounting of cramfs filesystems is disabled (Automated)
+- name: 1.1.1.1 - Ensure kernel module 'cramfs' is disabled
+  lineinfile:
+    create: true
+    dest: /etc/modprobe.d/cramfs.conf
+    regexp: cramfs
+    line: install cramfs /bin/true
+  tags:
+    - 1.1.1.1
+
+- name: 1.1.1.1 - Ensure kernel module 'cramfs' is blacklisted
+  lineinfile:
+    create: true
+    dest: /etc/modprobe.d/cramfs.conf
+    regexp: ^blacklist cramfs$
+    line: blacklist cramfs
+  tags:
+    - 1.1.1.1
+
+# 1.1.1.2 Ensure mounting of squashfs filesystems is disabled (Automated)
+- name: 1.1.1.2 - Ensure kernel module 'squashfs' is disabled
+  lineinfile:
+    create: true
+    dest: /etc/modprobe.d/squashfs.conf
+    regexp: squashfs
+    line: install squashfs /bin/true
+  tags:
+    - 1.1.1.2
+
+- name: 1.1.1.2 - Ensure kernel module 'squashfs' is blacklisted
+  lineinfile:
+    create: true
+    dest: /etc/modprobe.d/squashfs.conf
+    regexp: ^blacklist squashfs$
+    line: blacklist squashfs
+  tags:
+    - 1.1.1.2
+
+# 1.1.1.3 Ensure mounting of udf filesystems is disabled (Automated)
+- name: 1.1.1.3 - Ensure kernel module 'udf' is disabled
+  lineinfile:
+    create: true
+    dest: /etc/modprobe.d/udf.conf
+    regexp: udf
+    line: install udf /bin/true
+  tags:
+    - 1.1.1.3
+
+- name: 1.1.1.3 - Ensure kernel module 'udf' is blacklisted
+  lineinfile:
+    create: true
+    dest: /etc/modprobe.d/udf.conf
+    regexp: ^blacklist udf$
+    line: blacklist udf
+  tags:
+    - 1.1.1.3
+
+# 1.1.2.1 Ensure /tmp is a separate partition (Automated)
+# 1.1.2.2 Ensure nodev option set on /tmp partition (Automated)
+# 1.1.2.3 Ensure noexec option set on /tmp partition (Automated)
+# 1.1.2.4 Ensure nosuid option set on /tmp partition (Automated)
+- name: 1.1.2.[1-4] - Ensure /tmp is configured
+  block:
+    - name: Ensure the local-fs directory is created
+      ansible.builtin.file:
+        path: /etc/systemd/system/local-fs.target.wants
+        state: directory
+        owner: root
+        group: root
+        mode: 0755
+        setype: etc_t
+    - name: 1.1.2.[1-4] - Configure config file for tmpfs
+      ansible.builtin.blockinfile:
+        path: /etc/systemd/system/local-fs.target.wants/tmp.mount
+        block: |
+          [Mount]
+          What=tmpfs
+          Where=/tmp
+          Type=tmpfs
+          Options=mode=1777,strictatime,noexec,nodev,nosuid
+        create: true
+        owner: root
+        group: root
+        mode: 0644
+      notify: restart tmpfs
+  tags:
+    - 1.1.2.1
+    - 1.1.2.2
+    - 1.1.2.3
+    - 1.1.2.4
+
+# 1.1.3.1 Ensure separate partition exists for /var (Automated)
+- name: 1.1.3.1 - Report if /var is not on a separate partition
+  block:
+    - name: 1.1.3.1 - Set/reset mount counter
+      ansible.builtin.set_fact:
+        mount_count: 0
+    - name: 1.1.3.1 - Determine if /var is on a separate partition
+      ansible.builtin.set_fact:
+         mount_count: "addition{{ mount_count + 1 }}"
+         mount_options: "{{ item.options }}"
+      when: item.mount == "/var"
+      with_items:
+        - "{{ ansible_mounts }}"
+    - name: 1.1.3.1 - Report to user
+      ansible.builtin.debug:
+         msg: "FAILED CONTROL: /var is not on a separate partition"
+      when: mount_count == 0
+      changed_when: true
+  tags:
+    - 1.1.3.1
+
+# 1.1.3.2 Ensure nodev option set on /var partition (Automated)
+- name: 1.1.3.2 - Report if /var does not have nodev set
+  ansible.builtin.debug:
+    msg: "FAILED CONTROL: /var does not have nodev set"
+  when: mount_options is defined and "nodev" not in mount_options and mount_count == 0
+  changed_when: true
+  tags:
+    - 1.1.3.2
+
+# 1.1.3.3 Ensure noexec option set on /var partition (Automated)
+- name: 1.1.3.3 - Report if /var does not have noexec set
+  ansible.builtin.debug:
+    msg: "FAILED CONTROL: /var does not have noexec set"
+  when: mount_options is defined and "noexec" not in mount_options and mount_count == 0
+  changed_when: true
+  tags:
+    - 1.1.3.3
+
+# 1.1.3.4 Ensure nosuid option set on /var partition (Automated)
+- name: 1.1.3.4 - Report if /var does not have nosuid set
+  ansible.builtin.debug:
+    msg: "FAILED CONTROL: /var does not have nosuid set"
+  when: mount_options is defined and "nosuid" not in mount_options and mount_count == 0
+  changed_when: true
+  tags:
+    - 1.1.3.4
+
+# 1.1.4.1 Ensure separate partition exists for /var/tmp (Automated)
+- name: 1.1.4.1 - Report if /var/tmp is not on a separate partition
+  block:
+    - name: 1.1.4.1 - Set/reset mount counter
+      ansible.builtin.set_fact:
+        mount_count: 0
+    - name: 1.1.4.1 - Determine if /var/tmp is on a separate partition
+      ansible.builtin.set_fact:
+         mount_count: "addition{{ mount_count + 1 }}"
+         mount_options: "{{ item.options }}"
+      when: item.mount == "/var/tmp"
+      with_items:
+        - "{{ ansible_mounts }}"
+    - name: 1.1.4.1 - Report to user
+      ansible.builtin.debug:
+         msg: "FAILED CONTROL: /var/tmp is not on a separate partition"
+      when: mount_count == 0
+      changed_when: true
+  tags:
+    - 1.1.4.1
+
+#1.1.4.2 Ensure noexec option set on /var/tmp partition (Automated)
+- name: 1.1.4.1 - Report if /var/tmp does not have noexec set
+  ansible.builtin.debug:
+    msg: "FAILED CONTROL: /var/tmp does not have noexec set"
+  when: mount_options is defined and "noexec" not in mount_options and mount_count == 0
+  changed_when: true
+  tags:
+    - 1.1.4.1
+
+# 1.1.4.3 Ensure nosuid option set on /var/tmp partition (Automated)
+- name: 1.1.4.3 - Report if /var/tmp does not have nosuid set
+  ansible.builtin.debug:
+    msg: "FAILED CONTROL: /var/tmp does not have nosuid set"
+  when: mount_options is defined and "nosuid" not in mount_options and mount_count == 0
+  changed_when: true
+  tags:
+    - 1.1.4.3
+
+# 1.1.4.4 Ensure nodev option set on /var/tmp partition (Automated)
+- name: 1.1.4.4 - Report if /var/tmp does not have nodev set
+  ansible.builtin.debug:
+    msg: "FAILED CONTROL: /var/tmp does not have nodev set"
+  when: mount_options is defined and "nodev" not in mount_options and mount_count == 0
+  changed_when: true
+  tags:
+    - 1.1.4.4
+
+# 1.1.5.1 Ensure separate partition exists for /var/log (Automated)
+- name: 1.1.5.1 - Report if /var/log is not on a separate partition
+  block:
+    - name: 1.1.5.1 - Set/reset mount counter
+      ansible.builtin.set_fact:
+        mount_count: 0
+    - name: 1.1.5.1 - Determine if /var/log is on a separate partition
+      ansible.builtin.set_fact:
+         mount_count: "addition{{ mount_count + 1 }}"
+         mount_options: "{{ item.options }}"
+      when: item.mount == "/var/log"
+      with_items:
+        - "{{ ansible_mounts }}"
+    - name: 1.1.5.1 - Report to user
+      ansible.builtin.debug:
+         msg: "FAILED CONTROL: /var/log is not on a separate partition"
+      when: mount_count == 0
+      changed_when: true
+  tags:
+    - 1.1.5.1
+
+# 1.1.5.2 Ensure nodev option set on /var/log partition (Automated)
+- name: 1.1.5.2 - Report if /var/log does not have nodev set
+  ansible.builtin.debug:
+    msg: "FAILED CONTROL: /var/log does not have nodev set"
+  when: mount_options is defined and "nodev" not in mount_options and mount_count == 0
+  changed_when: true
+  tags:
+    - 1.1.5.2
+
+# 1.1.5.3 Ensure noexec option set on /var/log partition (Automated)
+- name: 1.1.5.3 - Report if /var/log does not have noexec set
+  ansible.builtin.debug:
+    msg: "FAILED CONTROL: /var/log does not have noexec set"
+  when: mount_options is defined and "noexec" not in mount_options and mount_count == 0
+  changed_when: true
+  tags:
+    - 1.1.5.3
+
+# 1.1.5.4 Ensure nosuid option set on /var/log partition (Automated)
+- name: 1.1.5.4 - Report if /var/log does not have nosuid set
+  ansible.builtin.debug:
+    msg: "FAILED CONTROL: /var/log does not have nosuid set"
+  when: mount_options is defined and "nosuid" not in mount_options and mount_count == 0
+  changed_when: true
+  tags:
+    - 1.1.5.4
+
+# 1.1.6.1 Ensure separate partition exists for /var/log/audit (Automated)
+- name: 1.1.6.1 - Report if /var/log/audit is not on a separate partition
+  block:
+    - name: 1.1.6.1 - Set/reset mount counter
+      ansible.builtin.set_fact:
+        mount_count: 0
+    - name: 1.1.6.1 - Determine if /var/log/audit is on a separate partition
+      ansible.builtin.set_fact:
+         mount_count: "addition{{ mount_count + 1 }}"
+         mount_options: "{{ item.options }}"
+      when: item.mount == "/var/log/audit"
+      with_items:
+        - "{{ ansible_mounts }}"
+    - name: 1.1.6.1 - Report to user
+      ansible.builtin.debug:
+         msg: "FAILED CONTROL: /var/log/audit is not on a separate partition"
+      when: mount_count == 0
+      changed_when: true
+  tags:
+    - 1.1.6.1
+
+# 1.1.6.2 Ensure noexec option set on /var/log/audit partition (Automated)
+- name: 1.1.6.2 - Report if /var/log/audit does not have noexec set
+  ansible.builtin.debug:
+    msg: "FAILED CONTROL: /var/log/audit does not have noexec set"
+  when: mount_options is defined and "noexec" not in mount_options and mount_count == 0
+  changed_when: true
+  tags:
+    - 1.1.6.2
+
+# 1.1.6.3 Ensure nodev option set on /var/log/audit partition (Automated)
+- name: 1.1.6.3 - Report if /var/log/audit does not have nodev set
+  ansible.builtin.debug:
+    msg: "FAILED CONTROL: /var/log/audit does not have nodev set"
+  when: mount_options is defined and "nodev" not in mount_options and mount_count == 0
+  changed_when: true
+  tags:
+    - 1.1.6.3
+
+# 1.1.6.4 Ensure nosuid option set on /var/log/audit partition (Automated)
+- name: 1.1.6.4 - Report if /var/log/audit does not have nosuid set
+  ansible.builtin.debug:
+    msg: "FAILED CONTROL: /var/log/audit does not have nosuid set"
+  when: mount_options is defined and "nosuid" not in mount_options and mount_count == 0
+  changed_when: true
+  tags:
+    - 1.1.6.4
+
+# 1.1.7.1 Ensure separate partition exists for /home (Automated)
+- name: 1.1.7.1 - Report if /home is not on a separate partition
+  block:
+    - name: 1.1.7.1 - Set/reset mount counter
+      ansible.builtin.set_fact:
+        mount_count: 0
+    - name: 1.1.7.1 - Determine if /home is on a separate partition
+      ansible.builtin.set_fact:
+         mount_count: "addition{{ mount_count + 1 }}"
+         mount_options: "{{ item.options }}"
+      when: item.mount == "/home"
+      with_items:
+        - "{{ ansible_mounts }}"
+    - name: 1.1.7.1 - Report to user
+      ansible.builtin.debug:
+         msg: "FAILED CONTROL: /home is not on a separate partition"
+      when: mount_count == 0
+      changed_when: true
+  tags:
+    - 1.1.7.1
+
+# 1.1.7.2 Ensure nodev option set on /home partition (Automated)
+- name: 1.1.7.2 - Report if /home does not have nodev set
+  ansible.builtin.debug:
+    msg: "FAILED CONTROL: /home does not have nodev set"
+  when: mount_options is defined and "nodev" not in mount_options and mount_count == 0
+  changed_when: true
+  tags:
+    - 1.1.7.2
+
+# 1.1.7.3 Ensure nosuid option set on /home partition (Automated)
+- name: 1.1.7.3 - Report if /home does not have nosuid set
+  ansible.builtin.debug:
+    msg: "FAILED CONTROL: /home does not have nosuid set"
+  when: mount_options is defined and "nosuid" not in mount_options and mount_count == 0
+  changed_when: true
+  tags:
+    - 1.1.7.3
+
+# 1.1.7.4 Ensure usrquota option set on /home partition (Automated)
+- name: 1.1.7.4 - Report if /home does not have usrquota set
+  ansible.builtin.debug:
+    msg: "FAILED CONTROL: /home does not have usrquota set"
+  when: mount_options is defined and "usrquota" not in mount_options and mount_count == 0
+  changed_when: true
+  tags:
+    - 1.1.7.4
+
+# 1.1.7.5 Ensure grpquota option set on /home partition (Automated)
+- name: 1.1.7.5 - Report if /home does not have grpquota set
+  ansible.builtin.debug:
+    msg: "FAILED CONTROL: /home does not have grpquota set"
+  when: mount_options is defined and "grpquota" not in mount_options and mount_count == 0
+  changed_when: true
+  tags:
+    - 1.1.7.5
+
+# 1.1.8.1 Ensure nodev option set on /dev/shm partition (Automated)
+- name: 1.1.8.1 - Report if /dev/shm does not have nodev set
+  block:
+    - name: Determine if /dev/shm has nodev set
+      ansible.builtin.shell: cat /proc/mounts | /usr/bin/grep /dev/shm | /usr/bin/grep -v nodev
+      register: devshm_nodev_out
+      failed_when: devshm_nodev_out == "2"
+      changed_when: false
+      check_mode: false
+    - name: 1.1.8.1 - Report to user
+      ansible.builtin.debug:
+        msg: "FAILED CONTROL: /dev/shm does not have nodev set"
+      when: devshm_nodev_out is defined and devshm_nodev_out.stdout
+      changed_when: true
+  tags:
+    - 1.1.8.1
+
+# 1.1.8.2 Ensure noexec option set on /dev/shm partition (Automated)
+- name: 1.1.8.2 - Report if /dev/shm does not have noexec set
+  block:
+    - name: 1.1.8.2 - Determine if /dev/shm has noexec set
+      ansible.builtin.shell: cat /proc/mounts | /usr/bin/grep /dev/shm | /usr/bin/grep -v noexec
+      register: devshm_noexec_out
+      failed_when: devshm_noexec_out == "2"
+      changed_when: false
+      check_mode: false
+    - name: 1.1.8.2 - Report to user
+      ansible.builtin.debug:
+        msg: "FAILED CONTROL: /dev/shm does not have noexec set"
+      when: devshm_noexec_out is defined and devshm_noexec_out.stdout
+      changed_when: true
+  tags:
+    - 1.1.8.2
+
+# 1.1.8.3 Ensure nosuid option set on /dev/shm partition (Automated)
+- name: 1.1.8.3 - Report if /dev/shm does not have nosuid set
+  block:
+    - name: Determine if /dev/shm has nosuid set
+      ansible.builtin.shell: cat /proc/mounts | /usr/bin/grep /dev/shm | /usr/bin/grep -v nosuid
+      register: devshm_nosuid_out
+      failed_when: devshm_nosuid_out == "2"
+      changed_when: false
+      check_mode: false
+    - name: 1.1.8.3 - Report to user
+      ansible.builtin.debug:
+        msg: "FAILED CONTROL: /dev/shm does not have nosuid set"
+      when: devshm_nosuid_out is defined and devshm_nosuid_out.stdout
+      changed_when: true
+  tags:
+    - 1.1.8.3
+
+# 1.1.9 Disable Automounting (Automated)
+- name: 1.1.9 - disable automounting
+  ansible.builtin.service:
+    name: autofs
+    enabled: false
+    state: stopped
+  when: "'autofs' in ansible_facts.packages"
+  tags:
+    - 1.1.9
+
+# 1.1.10 Disable USB Storage (Automated)
+- name: 1.1.10 - Disable USB storage module
+  ansible.builtin.lineinfile:
+    dest: /etc/modprobe.d/CIS.conf
+    line: "install usb-storage /bin/true"
+    state: present
+    create: true
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+    - 1.1.10
+
+# 1.2.1 Ensure GPG keys are configured (Manual)
+# 1.2.2 Ensure gpgcheck is globally activated (Automated)
+# 1.2.3 Ensure package manager repositories are configured (Manual)
+- name: 1.2.[1-3] - Ensure GPG keys are configured
+  block:
+    - name: 1.2.[1-3] - set master yum.conf gpgcheck to '1'
+      ansible.builtin.replace:
+        dest: /etc/yum.conf
+        regexp: '^gpgcheck\s*=\s*[^1]*$'
+        replace: "gpgcheck = 1"
+    - name: 1.2.[1-3] - set master dnf.conf gpgcheck to '1'
+      ansible.builtin.replace:
+        dest: /etc/dnf/dnf.conf
+        regexp: '^gpgcheck\s*=\s*[^1]*$'
+        replace: "gpgcheck=1"
+    - name: 1.2.[1-3] - find all repo files in /etc/yum.repos.d/
+      ansible.builtin.find:
+        paths: "/etc/yum.repos.d"
+        patterns: "*.repo"
+      register: yumrepos
+      when: gpgcheck is defined and gpgcheck
+    - name: 1.2.[1-3] - Set all repos gpgchecks to '1'
+      ansible.builtin.replace:
+        dest: "{{ item.path }}"
+        regexp: '^gpgcheck\s*=\s*[^1]*$'
+        replace: gpgcheck = 1
+      with_items: "{{ yumrepos.files }}"
+      when: gpgcheck is defined and gpgcheck 
+  tags:
+    - 1.2.1
+    - 1.2.2
+    - 1.2.3
+
+# 1.3.1 Ensure AIDE is installed (Automated)
+- name: 1.3.1 - Filesystem integrity checking w/AIDE
+  block:
+      # use the system package manager to install AIDE
+    - name: 1.3.1 Ensure aide is installed
+      ansible.builtin.package:
+        name: aide
+        state: present
+      tags:
+        - 1.3.1
+    - name: 1.3.1 - Determine if AIDE has already been initialized
+      ansible.builtin.stat:
+        path: /var/lib/aide/aide.db.gz
+      register: aide_path
+      tags:
+        - 1.3.1
+    - name: 1.3.1 - Set up database file location
+      ansible.builtin.replace:
+        dest: /etc/aide.conf
+        regexp: "^database=file:((?!{{ aide_db_name }}).)*$"
+        replace: "database=file:{{ aide_db_name }}"
+      tags:
+        - 1.3.1
+
+    - name: 1.3.1 - Set up database_out file location
+      ansible.builtin.replace:
+        dest: /etc/aide.conf
+        regexp: "^database_out=file:((?!{{ aide_new_db_name }}).)*$"
+        replace: "database_out=file:{{ aide_new_db_name }}"
+      tags:
+        - 1.3.1
+    - name: 1.3.1 - enable gzip compression for database
+      ansible.builtin.lineinfile:
+        dest: /etc/aide.conf
+        regexp: '^gzip_dbout\s*=\s*((?!{{ aide_gzip }}).)*$'
+        line: "gzip_dbout={{ aide_gzip }}"
+        state: present
+      tags:
+        - 1.3.1
+    - name: 1.3.1 - Initialize AIDE if it hasn't been already (/usr/sbin/aide)
+      ansible.builtin.command: /usr/sbin/aide --init
+      when: ( not aide_path.stat.exists or not aide_path.stat.isreg ) and ansible_distribution != "SLES"
+      register: aide
+      async: 1200 
+      poll: 0 
+      tags:
+        - 1.3.1
+    - name: Wait for AIDE initialization to complete
+      ansible.builtin.async_status: jid={{ aide.ansible_job_id }}
+      register: aide_status
+      until: aide_status.finished
+      when: ( not aide_path.stat.exists or not aide_path.stat.isreg ) and ansible_distribution != "SLES"
+      retries: 300
+      tags:
+        - 1.3.1
+    - name: 1.3.1 - Move the newly created database into place
+      ansible.builtin.copy:
+        src: /var/lib/aide/aide.db.new.gz
+        remote_src: true
+        dest: /var/lib/aide/aide.db.gz
+        mode: preserve
+      when: ( not aide_path.stat.exists or not aide_path.stat.isreg ) and ansible_distribution != "SLES"
+      changed_when: false
+      tags:
+        - 1.3.1
+
+# 1.3.2 Ensure filesystem integrity is regularly checked (Automated)
+- name: 1.3.2 Ensure filesystem integrity is regularly checked
+  block:
+    - name: 1.3.2 - Ensure File integrity is regularly checked (aidecheck service)
+      ansible.builtin.template:
+        src: aidecheck.service
+        dest: /etc/systemd/system/aidecheck.service
+        owner: root
+        group: root
+        mode: 0644
+        setype: systemd_unit_file_t
+      notify: restart aidecheck
+      tags:
+        - 1.3.2
+    - name: Enable aidecheck.service
+      ansible.builtin.systemd:
+        name: aidecheck.service
+        enabled: true
+      tags: 
+        - 1.3.2
+    - name: 1.3.2 - Ensure File integrity is regulary checked (aidecheck timer)
+      ansible.builtin.template:
+        src: aidecheck.timer
+        dest: /etc/systemd/system/aidecheck.timer
+        owner: root
+        group: root
+        mode: 0644
+        setype: systemd_unit_file_t
+      notify: restart aidecheck
+      tags:
+        - 1.3.2

@@ -7,3 +7,10 @@
     enabled: True
     masked: False
     daemon_reload: True
+
+- name: restart aidecheck
+  ansible.builtin.systemd:
+    name: aidecheck
+    enabled: True
+    state: restarted
+
